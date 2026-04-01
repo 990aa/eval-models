@@ -1,0 +1,6 @@
+<|im_start|>system
+You are a helpful AI assistant.<|im_end|>
+<|im_start|>user
+Provide a formal, step-by-step mathematical proof demonstrating that every finite integral domain is a field. State any underlying definitions or lemmas clearly before applying them to your final conclusion.<|im_end|>
+<|im_start|>assistant
+

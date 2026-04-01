@@ -1,18 +1,36 @@
 #!/bin/bash
 
-# Define paths relative to your root directory
+# =========================================================================
+# THE "BRUTE FORCE" TERMINAL CAPTURE WRAPPER
+# If the script isn't running inside our capture tool, relaunch it inside 'script'.
+# This creates a fake terminal, forcing llama-cli to write its text to the file.
+# =========================================================================
+if [ "$1" != "--captured" ]; then
+    export NO_COLOR=1 # Disable color codes to keep the text file clean
+    echo "Initializing Terminal Capture..."
+    > evaluation_results.txt # Clear the file
+    
+    # 'script' records absolutely everything on the screen to the file
+    script -q -e -c "$0 --captured" evaluation_results.txt
+    
+    echo "=================================================="
+    echo "EVALUATION COMPLETE! All raw output saved to: evaluation_results.txt"
+    echo "=================================================="
+    exit 0
+fi
+
+# =========================================================================
+# ACTUAL EVALUATION SCRIPT (Runs inside the captured terminal)
+# =========================================================================
 LLAMA_CLI="./llama.cpp/build/bin/llama-cli"
 MODEL_DIR="./llama.cpp/models"
-OUTPUT_FILE="evaluation_results.txt"
 
-# Define the model filenames
 MODELS=(
     "Qwen3.5-0.8B.Q5_K_M.gguf"
     "Qwen3.5-2B.Q5_K_M.gguf"
     "Qwen3.5-4B.Q4_K_M.gguf"
 )
 
-# Define the 5 evaluation prompts
 PROMPTS=(
     "Evaluate the integral \int_{0}^{\infty} \frac{\sin(x)}{x} dx using contour integration. Walk me through the choice of the contour, the handling of the pole at the origin, and the application of Cauchy's Integral Theorem or the Residue Theorem. Be rigorous with the limits as the contour radii approach zero and infinity."
     "Provide a formal, step-by-step mathematical proof demonstrating that every finite integral domain is a field. State any underlying definitions or lemmas clearly before applying them to your final conclusion."
@@ -21,7 +39,6 @@ PROMPTS=(
     "Assume a database schema with Employees(emp_id, manager_id, salary) and Departments(dept_id, dept_name, emp_id). Write an advanced SQL query using recursive Common Table Expressions (CTEs) to find the maximum depth of the management chain for every single department, and identify the specific employee at the very bottom of that deepest chain. Write this query assuming OracleDB syntax and explain the recursive logic step-by-step."
 )
 
-# Titles for the output file formatting
 PROMPT_NAMES=(
     "1. Advanced Mathematics - Contour Integration"
     "2. Abstract Algebra Proof"
@@ -30,39 +47,30 @@ PROMPT_NAMES=(
     "5. Advanced Database Querying (SQL)"
 )
 
-# Initialize the master output file
-echo "==================================================" > "$OUTPUT_FILE"
-echo "          LLM EVALUATION RESULTS REPORT           " >> "$OUTPUT_FILE"
-echo "==================================================" >> "$OUTPUT_FILE"
-echo "" >> "$OUTPUT_FILE"
+echo "=================================================="
+echo "          LLM EVALUATION RESULTS REPORT           "
+echo "=================================================="
+echo ""
 
-# Loop through each model
 for model in "${MODELS[@]}"; do
     echo "=================================================="
-    echo ">> Loading model: $model"
+    echo ">> Evaluating model: $model"
     echo "=================================================="
     
-    # Loop through each prompt for the current model
     for i in "${!PROMPTS[@]}"; do
         prompt_name="${PROMPT_NAMES[$i]}"
         prompt_text="${PROMPTS[$i]}"
         
         echo " -> Running: $prompt_name"
+        echo "##################################################"
+        echo "MODEL:  $model"
+        echo "PROMPT: $prompt_name"
+        echo "##################################################"
         
-        # Write clear headers to the text file so you know what you're looking at
-        echo "##################################################" >> "$OUTPUT_FILE"
-        echo "MODEL:  $model" >> "$OUTPUT_FILE"
-        echo "PROMPT: $prompt_name" >> "$OUTPUT_FILE"
-        echo "##################################################" >> "$OUTPUT_FILE"
+        # We removed the '>>' redirection here. 
+        # We let it print directly to the screen, and our 'script' wrapper catches it all.
+        $LLAMA_CLI -m "$MODEL_DIR/$model" -c 2048 -n 1024 --temp 0.3 -p "$prompt_text" --single-turn --log-disable
         
-        # Execute llama-cli. We redirect stderr (2>&1) so you get the generation tokens/sec stats logged too!
-        $LLAMA_CLI -m "$MODEL_DIR/$model" -c 2048 -n 1024 --temp 0.3 -p "$prompt_text" >> "$OUTPUT_FILE" 2>&1
-        
-        # Add some breathing room between outputs
-        echo -e "\n\n\n" >> "$OUTPUT_FILE"
+        echo -e "\n\n\n"
     done
 done
-
-echo "=================================================="
-echo "EVALUATION COMPLETE! All results saved to: $OUTPUT_FILE"
-echo "=================================================="
